@@ -37,6 +37,7 @@ interface CliOptions {
 	fontPath?: string
 	ifExists: ExistingPolicy
 	interactive: boolean
+	fastSkip: boolean
 }
 
 interface RunPlan {
@@ -50,6 +51,8 @@ interface RunPlan {
 	chapterDir?: string
 	fontPath?: string
 	ifExists: ExistingPolicy
+	fastSkip: boolean
+	novelTitle?: string
 }
 
 interface DiscoveryResult {
@@ -77,6 +80,8 @@ async function crawlChaptersSequential(params: {
 	outputRoot: string
 	ifExists: ExistingPolicy
 	delay: number
+	novelTitle?: string
+	fastSkip?: boolean
 }): Promise<{ outputDir: string | null; failures: Array<[number, string]> }> {
 	let outputDir: string | null = null
 	let existingPolicy: ExistingPolicy = ExistingFilePolicy.ASK
@@ -91,6 +96,8 @@ async function crawlChaptersSequential(params: {
 				ifExists: params.ifExists,
 				existingPolicy,
 				delay: params.delay,
+				novelTitle: params.novelTitle,
+				fastSkip: params.fastSkip,
 			})
 
 			outputDir = result.outputDir
@@ -113,6 +120,8 @@ async function crawlChaptersParallel(params: {
 	outputRoot: string
 	ifExists: ExistingPolicy
 	workers: number
+	novelTitle?: string
+	fastSkip?: boolean
 }): Promise<{ outputDir: string | null; failures: Array<[number, string]> }> {
 	let outputDir: string | null = null
 	const failures: Array<[number, string]> = []
@@ -133,6 +142,8 @@ async function crawlChaptersParallel(params: {
 					ifExists: params.ifExists,
 					existingPolicy: ExistingFilePolicy.ASK,
 					delay: 0,
+					novelTitle: params.novelTitle,
+					fastSkip: params.fastSkip,
 				})
 
 				if (!outputDir) {
@@ -255,6 +266,9 @@ function buildSummary(plan: RunPlan): string {
 		lines.push(`Workers: ${plan.workers}`)
 		lines.push(`Delay: ${plan.delay}s`)
 		lines.push(`If chapter exists: ${plan.ifExists}`)
+		if (plan.fastSkip) {
+			lines.push("Fast skip enabled: yes")
+		}
 	}
 
 	if (plan.chapterDir) {
@@ -582,6 +596,20 @@ async function buildInteractivePlan(
 		chapterDir = path.resolve(chapterDirAnswer ?? inferredChapterDir)
 	}
 
+	let fastSkip = options.fastSkip
+	if (action !== "epub_only") {
+		const fastSkipAnswer = await promptConfirm({
+			message:
+				"Enable Fast Skip? (Bypasses remote URL checks if the chapter file exists locally)",
+			initialValue: options.fastSkip,
+		})
+		if (await isPromptCancel(fastSkipAnswer)) {
+			await showCancel("Interactive crawl cancelled.")
+			return null
+		}
+		fastSkip = fastSkipAnswer as boolean
+	}
+
 	let fontPath = options.fontPath
 	if (action !== "crawl" || options.fontPath) {
 		const fontAnswer = await promptOptionalFontPath(options.fontPath)
@@ -603,6 +631,8 @@ async function buildInteractivePlan(
 		chapterDir,
 		fontPath,
 		ifExists,
+		fastSkip,
+		novelTitle: discovery.novelTitle,
 	}
 
 	await showNote(buildSummary(plan), "Plan")
@@ -651,8 +681,12 @@ async function buildRunPlan(
 			: "crawl"
 
 	let chapterNumbers: number[] | undefined
+	let novelTitle: string | undefined
+
 	if (!options.epubOnly) {
 		try {
+			const discovery = await discoverNovel(baseUrl)
+			novelTitle = discovery.novelTitle
 			chapterNumbers = await resolveChapterNumbers(baseUrl, options)
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error)
@@ -674,6 +708,8 @@ async function buildRunPlan(
 			: undefined,
 		fontPath: options.fontPath,
 		ifExists: options.ifExists,
+		fastSkip: options.fastSkip,
+		novelTitle,
 	}
 }
 
@@ -701,6 +737,8 @@ async function executePlan(
 				outputRoot: plan.outputRoot,
 				ifExists: plan.ifExists,
 				delay: plan.delay,
+				novelTitle: plan.novelTitle,
+				fastSkip: plan.fastSkip,
 			})
 			outputDir = result.outputDir
 			failures = result.failures
@@ -711,6 +749,8 @@ async function executePlan(
 				outputRoot: plan.outputRoot,
 				ifExists: plan.ifExists,
 				workers: plan.workers,
+				novelTitle: plan.novelTitle,
+				fastSkip: plan.fastSkip,
 			})
 			outputDir = result.outputDir
 			failures = result.failures
@@ -787,6 +827,11 @@ export async function main(argv = process.argv): Promise<number> {
 			"--if-exists <mode>",
 			"What to do if a chapter file already exists",
 			ExistingFilePolicy.ASK,
+		)
+		.option(
+			"--fast-skip",
+			"Skip checking the remote URL if the chapter file already exists locally",
+			false,
 		)
 		.option("-i, --interactive", "Launch the interactive TUI", false)
 

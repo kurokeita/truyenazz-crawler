@@ -373,7 +373,42 @@ export async function crawlChapter(params: {
 	ifExists: ExistingPolicy
 	existingPolicy: ExistingPolicy
 	delay: number
+	novelTitle?: string
+	fastSkip?: boolean
 }): Promise<CrawlResult> {
+	if (params.fastSkip && params.novelTitle) {
+		const novelSlug = slugify(params.novelTitle)
+		const earlyOutputDir = path.join(params.outputRoot, novelSlug)
+		const earlyOutputPath = path.join(
+			earlyOutputDir,
+			`chapter_${String(params.chapterNumber).padStart(4, "0")}.html`,
+		)
+		const action = await resolveExistingFileAction(
+			earlyOutputPath,
+			params.ifExists,
+			params.existingPolicy,
+		)
+
+		let earlySkipStatus: CrawlResult["status"] | undefined
+		if (action === "skip") {
+			earlySkipStatus = "skipped"
+		} else if (action === "skip_all") {
+			earlySkipStatus = "skip_all"
+		}
+
+		if (earlySkipStatus) {
+			console.log(
+				`[SKIP] Chapter ${params.chapterNumber} -> ${earlyOutputPath}`,
+			)
+			return {
+				novelTitle: params.novelTitle,
+				outputDir: earlyOutputDir,
+				outputPath: earlyOutputPath,
+				status: earlySkipStatus,
+			}
+		}
+	}
+
 	const url = buildChapterUrl(params.baseUrl, params.chapterNumber)
 	const fullHtml = await fetchHtml(url)
 	const chapter = extractFullChapterText(fullHtml)

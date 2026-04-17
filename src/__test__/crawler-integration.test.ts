@@ -402,6 +402,43 @@ describe("crawler integration", () => {
 		)
 	})
 
+	it("skips remote fetch when fastSkip is enabled and file exists", async () => {
+		const tempDir = await fs.mkdtemp(
+			path.join(os.tmpdir(), "truyenazz-fast-skip-"),
+		)
+		tempDirs.push(tempDir)
+		const { crawlChapter, ExistingFilePolicy } = await import("../crawler.js")
+
+		const novelTitle = "Fast Skip Book"
+		const outputDir = path.join(tempDir, "fast_skip_book")
+		await fs.mkdir(outputDir, { recursive: true })
+		const outputPath = path.join(outputDir, "chapter_0001.html")
+		await fs.writeFile(outputPath, "existing content", "utf8")
+
+		const fetchMock = vi.stubGlobal(
+			"fetch",
+			vi.fn().mockRejectedValue(new Error("Fetch should not be called")),
+		)
+
+		const result = await crawlChapter({
+			baseUrl: "https://example.com/fast-skip",
+			chapterNumber: 1,
+			outputRoot: tempDir,
+			ifExists: ExistingFilePolicy.SKIP,
+			existingPolicy: ExistingFilePolicy.ASK,
+			delay: 0,
+			novelTitle,
+			fastSkip: true,
+		})
+
+		expect(result.status).toBe("skipped")
+		expect(result.novelTitle).toBe(novelTitle)
+		expect(await fs.readFile(outputPath, "utf8")).toBe("existing content")
+		// vi.stubGlobal returns the mock, let's check it was NOT called
+		// Actually stubGlobal returns the mock if we passed one, or we can just access global.fetch
+		expect(fetch).not.toHaveBeenCalled()
+	})
+
 	it("fails latest chapter discovery when the latest section is missing", async () => {
 		const { discoverLastChapterNumber } = await import("../crawler.js")
 		vi.stubGlobal(

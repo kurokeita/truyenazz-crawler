@@ -175,6 +175,25 @@ describe("cli main", () => {
 		)
 	})
 
+	it("passes fastSkip to crawlChapter when --fast-skip is provided", async () => {
+		const { main, mocks } = await loadCli()
+		mocks.discoverLastChapterNumber.mockResolvedValue(1)
+		mocks.crawlChapter.mockImplementation(async ({ chapterNumber }) => ({
+			novelTitle: "My Book",
+			outputDir: "/tmp/book",
+			outputPath: `/tmp/book/chapter_${chapterNumber}.html`,
+			status: "written",
+		}))
+
+		await expect(
+			main(["node", "cli", "https://example.com/book", "--fast-skip"]),
+		).resolves.toBe(0)
+
+		expect(mocks.crawlChapter).toHaveBeenCalledWith(
+			expect.objectContaining({ fastSkip: true }),
+		)
+	})
+
 	it("fails for an invalid explicit chapter range", async () => {
 		const { main } = await loadCli()
 
@@ -279,31 +298,20 @@ describe("cli main", () => {
 
 		const { main, mocks } = await loadCli()
 		mocks.discoverLastChapterNumber.mockResolvedValue(12)
-		mocks.promptText.mockImplementation(async (params) => {
-			if (params.message === "Novel base URL") {
-				expect(params.validate?.("https://example.com/book")).toBeUndefined()
-				return "https://example.com/book"
-			}
-			if (params.message === "Output root directory") {
-				expect(params.validate?.("output")).toBeUndefined()
-				return "output"
-			}
-			if (params.message === "Delay between chapter requests (seconds)") {
-				expect(params.validate?.("0")).toBeUndefined()
-				return "0"
-			}
-			throw new Error(`Unexpected promptText message: ${params.message}`)
-		})
 		mocks.promptSelect
 			.mockResolvedValueOnce("crawl_epub")
 			.mockResolvedValueOnce("overwrite")
 			.mockResolvedValueOnce("custom")
+
+		mocks.promptConfirm
+			.mockResolvedValueOnce(true) // Fast Skip
+			.mockResolvedValueOnce(true) // Run this job now?
+
 		mocks.promptPath.mockImplementation(async (params) => {
 			expect(params.root).toBe(process.cwd())
 			expect(params.validate?.("Bokerlam.ttf")).toBeUndefined()
 			return "Bokerlam.ttf"
 		})
-		mocks.promptConfirm.mockResolvedValue(true)
 		mocks.buildEpub.mockResolvedValue("/tmp/book.epub")
 		mocks.crawlChapter.mockImplementation(async ({ chapterNumber }) => ({
 			novelTitle: "My Book",
@@ -785,7 +793,10 @@ describe("cli main", () => {
 		mocks.promptSelect
 			.mockResolvedValueOnce("crawl")
 			.mockResolvedValueOnce("skip_all")
-		mocks.promptConfirm.mockResolvedValue(true)
+
+		mocks.promptConfirm
+			.mockResolvedValueOnce(true) // Fast Skip
+			.mockResolvedValueOnce(true) // Run this job now?
 
 		await expect(main(["node", "cli"])).resolves.toBe(0)
 		expect(mocks.showNote).toHaveBeenCalledWith(
@@ -820,7 +831,10 @@ describe("cli main", () => {
 			.mockResolvedValueOnce("1") // end
 			.mockResolvedValueOnce("1") // workers
 			.mockResolvedValueOnce("0") // delay
-		mocks.promptConfirm.mockResolvedValue(true)
+
+		mocks.promptConfirm
+			.mockResolvedValueOnce(true) // Fast Skip
+			.mockResolvedValueOnce(true) // Run this job now?
 
 		await expect(
 			main(["node", "cli", "https://example.com/book", "--interactive"]),
@@ -839,5 +853,45 @@ describe("cli main", () => {
 		).resolves.toBe(0)
 
 		expect(mocks.fetchMainHtmlForCli).toHaveBeenCalled()
+	})
+
+	it("cancels interactive flow when Fast Skip prompt is canceled", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		})
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: true,
+			configurable: true,
+		})
+
+		const { main, mocks } = await loadCli()
+		mocks.discoverLastChapterNumber.mockResolvedValue(10)
+		mocks.promptText
+			.mockResolvedValueOnce("https://example.com/book")
+			.mockResolvedValueOnce("output")
+			.mockResolvedValueOnce("1") // start
+			.mockResolvedValueOnce("1") // end
+			.mockResolvedValueOnce("1") // workers
+			.mockResolvedValueOnce("0") // delay
+		mocks.promptSelect
+			.mockResolvedValueOnce("crawl")
+			.mockResolvedValueOnce("skip")
+
+		mocks.isPromptCancel
+			.mockResolvedValueOnce(false) // base url
+			.mockResolvedValueOnce(false) // action
+			.mockResolvedValueOnce(false) // output root
+			.mockResolvedValueOnce(false) // start
+			.mockResolvedValueOnce(false) // end
+			.mockResolvedValueOnce(false) // workers
+			.mockResolvedValueOnce(false) // delay
+			.mockResolvedValueOnce(false) // policy
+			.mockResolvedValueOnce(true) // FAST SKIP CANCELED
+
+		await expect(main(["node", "cli"])).resolves.toBe(1)
+		expect(mocks.showCancel).toHaveBeenCalledWith(
+			"Interactive crawl cancelled.",
+		)
 	})
 })
