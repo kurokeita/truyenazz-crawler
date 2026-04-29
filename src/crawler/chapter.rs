@@ -10,6 +10,8 @@ use super::types::{
     CrawlChapterParams, CrawlResult, CrawlStatus, ExistingChapterDecision, ExistingFilePolicy,
 };
 
+/// Resolve the per-novel output directory and the zero-padded chapter file
+/// path for a given chapter number.
 fn chapter_output_path(
     output_root: &Path,
     novel_title: &str,

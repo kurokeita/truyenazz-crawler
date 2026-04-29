@@ -10,6 +10,8 @@ use crate::utils::{clean_text, fetch_html};
 /// Regex to extract the chapter number from a `chuong-NN/` URL fragment.
 static CHUONG_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"/chuong-(\d+)/?$").unwrap());
 
+/// Walk forward through `start`'s siblings and return the first element with
+/// the given tag name, or `None` if no such sibling exists.
 fn next_sibling_element_of<'a>(
     start: ego_tree::NodeRef<'a, scraper::Node>,
     tag_name: &str,

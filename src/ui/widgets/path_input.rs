@@ -1,5 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
+/// Return the longest byte-prefix shared by every input string, backing off
+/// to the nearest UTF-8 boundary so the result is always valid UTF-8.
 pub fn longest_common_prefix(strings: &[String]) -> String {
     let first = match strings.first() {
         Some(s) => s,

@@ -74,6 +74,9 @@ pub fn extract_novel_description_from_main_page(html_source: &str) -> Option<Str
     None
 }
 
+/// Extract the author name from the novel's main page, trimming any trailing
+/// "Thể loại:" suffix and surrounding punctuation. Returns `None` when the
+/// author is not present or resolves to an empty string.
 pub fn extract_author_from_main_page(html_source: &str) -> Option<String> {
     let doc = Html::parse_document(html_source);
     let body_text: String = doc.root_element().text().collect();

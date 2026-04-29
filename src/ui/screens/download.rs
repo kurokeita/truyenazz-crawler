@@ -14,6 +14,8 @@ use crate::ui::{
     TerminalGuard, footer_hint, header_paragraph, next_key_event, palette, styled_block,
 };
 
+/// Render one frame of the download screen — header, status, gauge, recent
+/// activity log, and footer hint — from the current `DownloadProgress`.
 fn draw_download(
     terminal: &mut Terminal<ratatui::backend::CrosstermBackend<Stdout>>,
     progress: &DownloadProgress,

@@ -18,6 +18,8 @@ pub enum CliExistingPolicy {
 }
 
 impl From<CliExistingPolicy> for ExistingFilePolicy {
+    /// Lift a CLI-surface policy into the runtime `ExistingFilePolicy` used
+    /// by the crawler (the CLI surface deliberately omits `SkipAll`).
     fn from(value: CliExistingPolicy) -> Self {
         match value {
             CliExistingPolicy::Ask => ExistingFilePolicy::Ask,

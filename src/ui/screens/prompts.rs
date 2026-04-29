@@ -16,6 +16,8 @@ use crate::ui::{
     palette, styled_block,
 };
 
+/// Render one frame of the text-prompt screen with the given title, message
+/// body, and current `TextInput` state.
 fn draw_text_prompt(
     terminal: &mut Terminal<ratatui::backend::CrosstermBackend<Stdout>>,
     title: &str,
@@ -395,6 +397,8 @@ pub fn prompt_block_height(message: &str) -> u16 {
     total.max(5)
 }
 
+/// Show a yes/no confirmation prompt and return the user's choice. When
+/// `default_yes` is true the cursor starts on "Yes", otherwise on "No".
 pub fn run_confirm(title: &str, message: &str, default_yes: bool) -> Result<PromptOutcome<bool>> {
     let options = vec![
         SelectOption {
