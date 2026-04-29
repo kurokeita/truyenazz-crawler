@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -182,7 +183,7 @@ pub async fn crawl_chapters_parallel(params: ParallelParams) -> RunnerOutcome {
     } = params;
 
     let total = chapter_numbers.len() as u32;
-    let queue = Arc::new(tokio::sync::Mutex::new(chapter_numbers));
+    let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::from(chapter_numbers)));
     let output_dir: Arc<tokio::sync::Mutex<Option<PathBuf>>> =
         Arc::new(tokio::sync::Mutex::new(None));
     let failures: Arc<tokio::sync::Mutex<Vec<(u32, String)>>> =
@@ -204,12 +205,9 @@ pub async fn crawl_chapters_parallel(params: ParallelParams) -> RunnerOutcome {
 
         handles.push(tokio::spawn(async move {
             loop {
-                let chapter_number = {
-                    let mut q = queue.lock().await;
-                    if q.is_empty() {
-                        break;
-                    }
-                    q.remove(0)
+                let chapter_number = match queue.lock().await.pop_front() {
+                    Some(n) => n,
+                    None => break,
                 };
 
                 emit(
