@@ -6,7 +6,6 @@ use std::time::Duration;
 use unicode_normalization::UnicodeNormalization;
 
 /// Browser-style User-Agent header sent on every outbound HTTP request.
-/// Matches the value used by the TypeScript port for parity.
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36";
 
 /// Lines starting with any of these phrases are treated as scraped boilerplate
