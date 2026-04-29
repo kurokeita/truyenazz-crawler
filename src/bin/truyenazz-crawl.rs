@@ -330,6 +330,10 @@ async fn execute_plan(plan: InteractivePlan, interactive: bool) -> i32 {
                 Err(code) => return code,
             }
         };
+        if outcome.cancelled {
+            eprintln!("[INFO] Download cancelled by user.");
+            return 1;
+        }
         output_dir = outcome.output_dir;
         failures = outcome.failures;
     }

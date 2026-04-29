@@ -188,8 +188,8 @@ pub async fn run_download_screen(
     let outcome = match (&mut runner_task).await {
         Ok(o) => o,
         Err(error) if error.is_cancelled() => crate::runner::RunnerOutcome {
-            output_dir: None,
-            failures: Vec::new(),
+            cancelled: true,
+            ..Default::default()
         },
         Err(error) => return Err(anyhow::anyhow!("download task panicked: {error}")),
     };

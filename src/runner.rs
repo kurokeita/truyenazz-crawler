@@ -23,13 +23,17 @@ pub enum ProgressEvent {
 pub type ProgressCallback = Arc<dyn Fn(ProgressEvent) + Send + Sync>;
 
 /// Aggregated outcome of running multiple chapter downloads.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RunnerOutcome {
     /// First successfully resolved per-novel directory, if any chapter ran.
     pub output_dir: Option<PathBuf>,
     /// `(chapter_number, error_message)` for each failure, sorted by chapter
     /// number for parallel runs.
     pub failures: Vec<(u32, String)>,
+    /// True when the run was aborted before completion (e.g. user pressed
+    /// Esc on the TUI download screen). Distinguishes cancellation from a
+    /// successful empty run so callers can pick the right exit code.
+    pub cancelled: bool,
 }
 
 /// Inputs to [`crawl_chapters_sequential`].
@@ -133,6 +137,7 @@ pub async fn crawl_chapters_sequential(params: SequentialParams) -> RunnerOutcom
     RunnerOutcome {
         output_dir,
         failures,
+        cancelled: false,
     }
 }
 
@@ -267,5 +272,6 @@ pub async fn crawl_chapters_parallel(params: ParallelParams) -> RunnerOutcome {
     RunnerOutcome {
         output_dir,
         failures,
+        cancelled: false,
     }
 }
