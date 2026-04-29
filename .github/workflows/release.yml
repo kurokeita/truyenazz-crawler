@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  BIN_NAME: truyenazz-crawl
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            exe: ""
+            archive: tar.gz
+          - label: windows-x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe: ".exe"
+            archive: zip
+          - label: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            exe: ""
+            archive: tar.gz
+          - label: macos-aarch64
+            runner: macos-15
+            target: aarch64-apple-darwin
+            exe: ""
+            archive: tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Cache cargo registry and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          asset_base="${BIN_NAME}-${{ matrix.label }}"
+          binary_path="target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.exe }}"
+
+          mkdir -p dist
+          cp "${binary_path}" "dist/${asset_base}${{ matrix.exe }}"
+
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            7z a "dist/${asset_base}.zip" "dist/${asset_base}${{ matrix.exe }}"
+          else
+            tar -czf "dist/${asset_base}.tar.gz" -C dist "${asset_base}${{ matrix.exe }}"
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-${{ matrix.label }}
+          path: dist/${{ env.BIN_NAME }}-${{ matrix.label }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+      - name: Upload artifact to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes ""
+          gh release upload "${GITHUB_REF_NAME}" dist/* --clobber
