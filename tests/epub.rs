@@ -298,8 +298,7 @@ fn extract_novel_status_pulls_status_span_under_info_p() {
 fn extract_novel_status_returns_none_when_missing() {
     assert!(extract_novel_status_from_main_page("<html></html>").is_none());
     // Status span exists but in the wrong place — must be under .content1 .info p.
-    let unrelated =
-        "<html><body><span class=\"status\">Đang ra</span></body></html>";
+    let unrelated = "<html><body><span class=\"status\">Đang ra</span></body></html>";
     assert!(extract_novel_status_from_main_page(unrelated).is_none());
 }
 

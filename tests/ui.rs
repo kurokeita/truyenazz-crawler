@@ -3,8 +3,8 @@ use truyenazz_crawler::crawler::CrawlStatus;
 use truyenazz_crawler::crawler::ExistingFilePolicy;
 use truyenazz_crawler::ui::{
     CrawlMode, DownloadLogEntry, DownloadProgress, PathInput, PathInputAction, Select,
-    SelectOption, SummaryParams, TextInput, TextInputAction, build_summary,
-    longest_common_prefix, path_completions, prompt_block_height,
+    SelectOption, SummaryParams, TextInput, TextInputAction, build_summary, longest_common_prefix,
+    path_completions, prompt_block_height,
 };
 
 /// Build a `KeyEvent` with no modifiers — a tiny ergonomic helper for the
@@ -258,7 +258,11 @@ fn longest_common_prefix_handles_empty_and_single() {
 
 #[test]
 fn longest_common_prefix_returns_shared_start() {
-    let inputs = vec!["foobar".to_string(), "foobaz".to_string(), "fooqux".to_string()];
+    let inputs = vec![
+        "foobar".to_string(),
+        "foobaz".to_string(),
+        "fooqux".to_string(),
+    ];
     assert_eq!(longest_common_prefix(&inputs), "foo");
 }
 

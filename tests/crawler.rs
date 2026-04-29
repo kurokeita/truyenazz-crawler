@@ -180,14 +180,13 @@ fn discover_last_chapter_number_from_html_parses_pure_html() {
   </div>
 </body></html>
 "#;
-    let n =
-        discover_last_chapter_number_from_html(html, "https://truyenazz.me/foo/").unwrap();
+    let n = discover_last_chapter_number_from_html(html, "https://truyenazz.me/foo/").unwrap();
     assert_eq!(n, 51);
 }
 
 #[test]
 fn discover_last_chapter_number_from_html_errors_on_missing_section() {
-    let err = discover_last_chapter_number_from_html("<html></html>", "https://x/foo/")
-        .unwrap_err();
+    let err =
+        discover_last_chapter_number_from_html("<html></html>", "https://x/foo/").unwrap_err();
     assert!(err.to_string().contains("Chương Mới Nhất"));
 }
