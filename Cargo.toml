@@ -1,6 +1,6 @@
 [package]
 name = "truyenazz-crawler"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Rust implementation of the TruyenAZZ crawler and EPUB builder"
 license = "GPL-3.0-or-later"
