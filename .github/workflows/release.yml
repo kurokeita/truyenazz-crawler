@@ -26,6 +26,11 @@ jobs:
             target: x86_64-unknown-linux-gnu
             exe: ""
             archive: tar.gz
+          - label: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            exe: ""
+            archive: tar.gz
           - label: windows-x86_64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
@@ -71,14 +76,15 @@ jobs:
 
           asset_base="${BIN_NAME}-${{ matrix.label }}"
           binary_path="target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.exe }}"
+          stage="dist/${asset_base}"
 
-          mkdir -p dist
-          cp "${binary_path}" "dist/${asset_base}${{ matrix.exe }}"
+          mkdir -p "${stage}"
+          cp "${binary_path}" "${stage}/${BIN_NAME}${{ matrix.exe }}"
 
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            7z a "dist/${asset_base}.zip" "dist/${asset_base}${{ matrix.exe }}"
+            (cd "${stage}" && 7z a "../${asset_base}.zip" "${BIN_NAME}${{ matrix.exe }}")
           else
-            tar -czf "dist/${asset_base}.tar.gz" -C dist "${asset_base}${{ matrix.exe }}"
+            tar -czf "dist/${asset_base}.tar.gz" -C "${stage}" "${BIN_NAME}${{ matrix.exe }}"
           fi
 
       - name: Upload workflow artifact
@@ -97,4 +103,102 @@ jobs:
           set -euo pipefail
           gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
             || gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes ""
-          gh release upload "${GITHUB_REF_NAME}" dist/* --clobber
+          gh release upload "${GITHUB_REF_NAME}" \
+            "dist/${BIN_NAME}-${{ matrix.label }}.${{ matrix.archive }}" --clobber
+
+  publish-homebrew:
+    name: Publish Homebrew formula
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Render formula
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+
+          mkdir -p /tmp/release Formula
+          for label in linux-x86_64 linux-aarch64 macos-x86_64 macos-aarch64; do
+            asset="${BIN_NAME}-${label}.tar.gz"
+            gh release download "${TAG}" -R "${REPO}" -p "${asset}" -D /tmp/release
+          done
+          sha_linux_x86_64=$(sha256sum "/tmp/release/${BIN_NAME}-linux-x86_64.tar.gz" | awk '{print $1}')
+          sha_linux_aarch64=$(sha256sum "/tmp/release/${BIN_NAME}-linux-aarch64.tar.gz" | awk '{print $1}')
+          sha_macos_x86_64=$(sha256sum "/tmp/release/${BIN_NAME}-macos-x86_64.tar.gz" | awk '{print $1}')
+          sha_macos_aarch64=$(sha256sum "/tmp/release/${BIN_NAME}-macos-aarch64.tar.gz" | awk '{print $1}')
+
+          cat > Formula/truyenazz-crawler.rb <<EOF
+          class TruyenazzCrawler < Formula
+            desc "Rust crawler and EPUB builder for truyenazz.me novels"
+            homepage "https://github.com/${REPO}"
+            version "${version}"
+            license "GPL-3.0-or-later"
+
+            on_macos do
+              on_intel do
+                url "https://github.com/${REPO}/releases/download/${TAG}/${BIN_NAME}-macos-x86_64.tar.gz"
+                sha256 "${sha_macos_x86_64}"
+              end
+              on_arm do
+                url "https://github.com/${REPO}/releases/download/${TAG}/${BIN_NAME}-macos-aarch64.tar.gz"
+                sha256 "${sha_macos_aarch64}"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/${REPO}/releases/download/${TAG}/${BIN_NAME}-linux-x86_64.tar.gz"
+                sha256 "${sha_linux_x86_64}"
+              end
+              on_arm do
+                url "https://github.com/${REPO}/releases/download/${TAG}/${BIN_NAME}-linux-aarch64.tar.gz"
+                sha256 "${sha_linux_aarch64}"
+              end
+            end
+
+            def install
+              bin.install "${BIN_NAME}"
+            end
+
+            test do
+              system "#{bin}/${BIN_NAME}", "--version"
+            end
+          end
+          EOF
+
+      - name: Push formula to tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/kurokeita/homebrew-brew.git" tap
+          mkdir -p tap/Formula
+          cp Formula/truyenazz-crawler.rb tap/Formula/truyenazz-crawler.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/truyenazz-crawler.rb
+          if git diff --staged --quiet; then
+            echo "Formula unchanged, nothing to push"
+            exit 0
+          fi
+          git commit -m "truyenazz-crawler ${TAG}"
+          git push
+
+  publish-winget:
+    name: Publish to winget
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    steps:
+      - name: Submit manifest
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Kurokeita.TruyenazzCrawler
+          installers-regex: 'truyenazz-crawl-windows-x86_64\.zip$'
+          token: ${{ secrets.WINGET_TOKEN }}
